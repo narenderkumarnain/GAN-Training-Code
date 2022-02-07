@@ -57,7 +57,8 @@ class CycleGANConfig():
 
     # training configurations
     batch_size = 1
-    n_epochs = 10
+    n_epochs = 1
+    log_freq = 10
 
     # learning rates
     lr = 0.0002

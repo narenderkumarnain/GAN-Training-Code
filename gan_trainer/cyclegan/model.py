@@ -3,7 +3,6 @@ For External Use.
 Wrapper Model class for CycleGAN.
 """
 import os.path
-
 import wandb
 import logging
 import torch
@@ -33,7 +32,7 @@ class CycleGAN:
     Config Class Parameters controls various Functionalities Here.
     """
 
-    def __init__(self, config: CycleGANConfig):
+    def __init__(self, config: CycleGANConfig, project_name = "CycleGAN 0"):
         """
 
         Parameters
@@ -41,6 +40,13 @@ class CycleGAN:
         config: Configuration for Model.
         """
         self.config = config
+        self.transform = [
+            transforms.Resize((self.config.input_dims[1], self.config.input_dims[2])),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ]
+        wandb.init(project = project_name)
         if not self.config.inference:
             # two generators
             self.Gen_A_to_B = Generator(self.config.input_dims[0],self.config.residual_blocks)
@@ -48,6 +54,8 @@ class CycleGAN:
             # two discriminators
             self.Dis_A = Discriminator(self.config.input_dims[0])
             self.Dis_B = Discriminator(self.config.input_dims[0])
+
+            wandb.watch((self.Gen_A_to_B, self.Gen_B_to_A, self.Dis_A, self.Dis_B), log = "all", log_freq = config.log_freq)
 
             # loading weights
             if self.config.weights_gen_AB is not None:
@@ -86,7 +94,7 @@ class CycleGAN:
         -------
 
         """
-        transform = transforms.Compose(self.config.transform)
+        transform = transforms.Compose(self.transform)
         img = transform(img)
         if A_to_B:
             res = self.Gen_A_to_B(img)
@@ -95,14 +103,17 @@ class CycleGAN:
 
         return res
 
-    def train(self,dataset, epochs = None):
-        device = torch.device(self.config.device) if self.config.device.contains("gpu") else torch.device("cpu")
+    def train(self):
+        device = torch.device(self.config.device) if self.config.device[:2] == "gpu" else torch.device("cpu")
 
         logger.info(f"Model in Training")
 
         if not os.path.exists(self.config.checkpoint_dir):
             os.mkdir(self.config.checkpoint_dir)
             logger.info(f'Directory {self.config.checkpoint_dir} Created!')
+        if not os.path.exists(self.config.sample_results_dir):
+            os.mkdir(self.config.sample_results_dir)
+            logger.info(f'Directory {self.config.sample_results_dir} Created!')
         # pulling models to device
         self.Gen_A_to_B = self.Gen_A_to_B.to(device)
         self.Gen_B_to_A = self.Gen_B_to_A.to(device)
@@ -122,26 +133,26 @@ class CycleGAN:
         optimizer_D_B = torch.optim.Adam(self.Dis_B.parameters(), lr=self.config.lr, betas=(self.config.b1, self.config.b2))
 
         # Learning rate update schedulers
-        lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(
-            optimizer_G, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
-        )
-        lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(
-            optimizer_D_A, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
-        )
-        lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(
-            optimizer_D_B, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
-        )
+        # lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer_G, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
+        # )
+        # lr_scheduler_D_A = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer_D_A, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
+        # )
+        # lr_scheduler_D_B = torch.optim.lr_scheduler.LambdaLR(
+        #     optimizer_D_B, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
+        # )
 
 
         # loading the dataloader
         trainLoader = DataLoader(
-            ImagetoImageDataset(self.config.dataset_path,mode="train",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.config.transform),
+            ImagetoImageDataset(self.config.dataset_path,mode="train",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform),
             batch_size=self.config.batch_size,
             shuffle=True
         )
 
         testLoader = DataLoader(
-            ImagetoImageDataset(self.config.dataset_path,mode="test",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.config.transform),
+            ImagetoImageDataset(self.config.dataset_path,mode="test",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform),
             batch_size=self.config.batch_size,
             shuffle=True
         )
@@ -153,17 +164,19 @@ class CycleGAN:
         # training loop starts
         previousTime = time.time()
 
-        for epoch in range(self.config.n_epochs):
+        for epoch in tqdm.tqdm(range(self.config.n_epochs), desc=f"Epoch"):
             # for each batch
-            for i, batch in enumerate(trainLoader):
+            for i, batch in enumerate(tqdm.tqdm(trainLoader,desc=f"Batch")):
                 img_real_A,img_real_B = batch
 
                 img_real_A = img_real_A.to(device)
                 img_real_B = img_real_B.to(device)
 
                 # Adversarial ground truths
-                valid = Variable(torch.Tensor(np.ones((img_real_A.size(0), *self.Dis_A.output_shape))), requires_grad=False)
-                fake = Variable(torch.Tensor(np.zeros((img_real_A.size(0), *self.Dis_A.output_shape))), requires_grad=False)
+                channels, height, width = self.config.input_dims
+                dis_output_shape = (1, height // 2 ** 4, width // 2 ** 4)
+                valid = Variable(torch.Tensor(np.ones((img_real_A.size(0), *dis_output_shape))), requires_grad=False)
+                fake = Variable(torch.Tensor(np.zeros((img_real_A.size(0), *dis_output_shape))), requires_grad=False)
 
                 # Generator training
                 self.Gen_B_to_A.train()
@@ -173,6 +186,8 @@ class CycleGAN:
 
                 # GAN Losses
                 img_fake_B = self.Gen_A_to_B(img_real_A)
+
+
                 loss_GAN_AB = lossGAN(self.Dis_B(img_fake_B),valid)
 
                 img_fake_A = self.Gen_B_to_A(img_fake_B)
@@ -235,22 +250,25 @@ class CycleGAN:
                 previousTime = time.time()
 
                 # Logging The losses in wandb and logger
-                logger.info(f'''
-                Epoch:{epoch} Batch:{i} 
-                Loss Generator AB: {loss_Gen.item()} 
-                    Cyclic:{loss_cycle.item()} Identity:{loss_identity.item()} GAN:{loss_GAN_net.item()}
-                Loss Discriminator DA:{loss_DA.item()}
-                Loss Discriminator DB:{loss_DB.item()}
-                Remaining Time: {time_left}
-                ''')
 
-                # Checkpoint
-                if epoch % self.config.checkpoint_freq == 0:
-                    logger.info(f'Saving Checkpoints')
-                    torch.save(self.Gen_A_to_B.state_dict(), os.path.join(self.config.checkpoint_dir, "Gen_A_to_B.pth"))
-                    torch.save(self.Gen_B_to_A.state_dict(), os.path.join(self.config.checkpoint_dir, "Gen_B_to_A.pth"))
-                    torch.save(self.Dis_A.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_A.pth"))
-                    torch.save(self.Dis_B.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_B.pth"))
+                # if batches_done % self.config.log_freq == 0:
+                #     logger.info(f'''
+                #     Epoch:{epoch} Batch:{i}
+                #     Loss Generator AB: {round(loss_Gen.item(),4)}
+                #         Cyclic:{round(loss_cycle.item(),4)} Identity:{round(loss_identity.item(),4)} GAN:{round(loss_GAN_net.item(),4)}
+                #     Loss Discriminator DA:{round(loss_DA.item(),4)}
+                #     Loss Discriminator DB:{round(loss_DB.item(),4)}
+                #     Remaining Time: {time_left}
+                #     ''')
+
+                wandb.log({
+                    'Loss Generator': round(loss_Gen.item(),4) ,
+                    'Loss Generator Cyclic': round(loss_cycle.item(),4) ,
+                    'Loss Generator GAN': round(loss_GAN_net.item(),4),
+                    'Loss Generator Identity': round(loss_identity.item(),4),
+                    'Loss Dis A': round(loss_DA.item(),4) ,
+                    'Loss Dis B': round(loss_DB.item(),4)
+                },step = self.config.log_freq)
 
                 # saving some sample results
                 if batches_done % self.config.batch_freq == 0:
@@ -271,10 +289,19 @@ class CycleGAN:
                     save_image(image_grid, os.path.join(self.config.sample_results_dir, f"epoch{epoch}batch{i}.png"), normalize=False)
                     logger.info(f'Sample Results Saved: {os.path.join(self.config.sample_results_dir, f"epoch{epoch}batch{i}.png")}')
 
+                # Checkpoint
+            if epoch % self.config.checkpoint_freq == 0:
+                logger.info(f'Saving Checkpoints')
+                torch.save(self.Gen_A_to_B.state_dict(),
+                            os.path.join(self.config.checkpoint_dir, "Gen_A_to_B.pth"))
+                torch.save(self.Gen_B_to_A.state_dict(),
+                            os.path.join(self.config.checkpoint_dir, "Gen_B_to_A.pth"))
+                torch.save(self.Dis_A.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_A.pth"))
+                torch.save(self.Dis_B.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_B.pth"))
                 # Update learning rates
-                lr_scheduler_G.step()
-                lr_scheduler_D_A.step()
-                lr_scheduler_D_B.step()
+                # lr_scheduler_G.step()
+                # lr_scheduler_D_A.step()
+                # lr_scheduler_D_B.step()
 
 
 
