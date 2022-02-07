@@ -105,7 +105,7 @@ class CycleGAN:
 
     def train(self):
         device = torch.device(self.config.device) if self.config.device[:2] == "gpu" else torch.device("cpu")
-
+        logger.info(device)
         logger.info(f"Model in Training")
 
         if not os.path.exists(self.config.checkpoint_dir):
