@@ -3,6 +3,7 @@ For External Use.
 Configuration Arguments for CycleGAN Model Training.
 """
 import logging
+from torchvision.transforms import transforms
 
 logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger()
@@ -23,6 +24,7 @@ class CycleGANConfig():
     inference = False
     input_A = True
 
+
     # no of residual blocks
     # should be 6 in low resolution training
     # and 9 in high resolution training
@@ -33,6 +35,38 @@ class CycleGANConfig():
     weights_gen_BA = None
     weights_dis_A = None
     weights_dis_B = None
+
+    # checkpointing
+    checkpoint_dir = "model_weights"
+    checkpoint_freq = 5
+
+    # sample inference results
+    sample_results_dir = "sample_results"
+    batch_freq = 100
+
+    # dataset information
+    dataset_path = "./dataset/archive/apple2orange/apple2orange"
+    aligned = False
+    sub_dir_dataset = False
+    transform = [
+        transforms.Resize((input_dims[1], input_dims[2])),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ]
+
+    # training configurations
+    batch_size = 1
+    n_epochs = 10
+
+    # learning rates
+    lr = 0.0002
+    b1 = 0.5
+    b2 = 0.999
+    decay_epoch = 100
+
+    lambda_cyclic = 10.0
+    lambda_identity = 5.0
 
     def __str__(self):
         """
