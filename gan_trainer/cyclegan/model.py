@@ -104,7 +104,7 @@ class CycleGAN:
         return res
 
     def train(self):
-        device = torch.device(self.config.device) if self.config.device[:2] == "gpu" else torch.device("cpu")
+        device = torch.device(self.config.device)
         logger.info(device)
         logger.info(f"Model in Training")
 
@@ -175,8 +175,8 @@ class CycleGAN:
                 # Adversarial ground truths
                 channels, height, width = self.config.input_dims
                 dis_output_shape = (1, height // 2 ** 4, width // 2 ** 4)
-                valid = Variable(torch.Tensor(np.ones((img_real_A.size(0), *dis_output_shape))), requires_grad=False)
-                fake = Variable(torch.Tensor(np.zeros((img_real_A.size(0), *dis_output_shape))), requires_grad=False)
+                valid = Variable(torch.Tensor(np.ones((img_real_A.size(0), *dis_output_shape))), requires_grad=False).to(device)
+                fake = Variable(torch.Tensor(np.zeros((img_real_A.size(0), *dis_output_shape))), requires_grad=False).to(device)
 
                 # Generator training
                 self.Gen_B_to_A.train()
