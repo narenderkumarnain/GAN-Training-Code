@@ -164,9 +164,9 @@ class CycleGAN:
         # training loop starts
         previousTime = time.time()
 
-        for epoch in tqdm.tqdm(range(self.config.n_epochs), desc=f"Epoch"):
+        for epoch in tqdm.tqdm(range(self.config.n_epochs),position = 0, leave = True,  desc=f"Epoch"):
             # for each batch
-            for i, batch in enumerate(tqdm.tqdm(trainLoader,desc=f"Batch")):
+            for i, batch in enumerate(tqdm.tqdm(trainLoader,position = 0, leave = True,desc=f"Batch")):
                 img_real_A,img_real_B = batch
 
                 img_real_A = img_real_A.to(device)

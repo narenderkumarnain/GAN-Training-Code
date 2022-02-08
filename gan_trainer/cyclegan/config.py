@@ -48,12 +48,6 @@ class CycleGANConfig():
     dataset_path = "./dataset/archive/apple2orange/apple2orange"
     aligned = False
     sub_dir_dataset = False
-    transform = [
-        transforms.Resize((input_dims[1], input_dims[2])),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ]
 
     # training configurations
     batch_size = 1
@@ -76,6 +70,7 @@ class CycleGANConfig():
         -------
 
         """
+        # TODO Completion of String Representation
         return f'''
         Model Configuration:
             Device: {self.device}
