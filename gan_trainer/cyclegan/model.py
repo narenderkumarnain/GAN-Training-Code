@@ -283,7 +283,7 @@ class CycleGAN:
                     'Loss Generator Identity': round(loss_identity.item(),4),
                     'Loss Dis A': round(loss_DA.item(),4) ,
                     'Loss Dis B': round(loss_DB.item(),4)
-                },step = self.config.log_freq)
+                })
 
                 # saving some sample results
                 if batches_done % self.config.batch_freq == 0:
@@ -305,14 +305,14 @@ class CycleGAN:
                     logger.info(f'Sample Results Saved: {os.path.join(self.config.sample_results_dir, f"epoch{epoch}batch{i}.png")}')
 
                 # Checkpoint
-            if epoch % self.config.checkpoint_freq == 0:
-                logger.info(f'Saving Checkpoints')
-                torch.save(self.Gen_A_to_B.state_dict(),
-                            os.path.join(self.config.checkpoint_dir, "Gen_A_to_B.pth"))
-                torch.save(self.Gen_B_to_A.state_dict(),
-                            os.path.join(self.config.checkpoint_dir, "Gen_B_to_A.pth"))
-                torch.save(self.Dis_A.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_A.pth"))
-                torch.save(self.Dis_B.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_B.pth"))
+                if batches_done % self.config.checkpoint_freq == 0:
+                    logger.info(f'Saving Checkpoints')
+                    torch.save(self.Gen_A_to_B.state_dict(),
+                                os.path.join(self.config.checkpoint_dir, "Gen_A_to_B.pth"))
+                    torch.save(self.Gen_B_to_A.state_dict(),
+                                os.path.join(self.config.checkpoint_dir, "Gen_B_to_A.pth"))
+                    torch.save(self.Dis_A.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_A.pth"))
+                    torch.save(self.Dis_B.state_dict(), os.path.join(self.config.checkpoint_dir, "Dis_B.pth"))
                 # Update learning rates
                 # lr_scheduler_G.step()
                 # lr_scheduler_D_A.step()
