@@ -7,7 +7,7 @@ import glob
 import torch
 import random
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
@@ -15,7 +15,7 @@ from torchvision.transforms import transforms
 # class for Image to Image Translation Datasets
 class ImagetoImageDataset(Dataset):
 
-    def __init__(self, root_dir, mode="train", imageTransforms=None, aligned=True, A_name="A", B_name="B", sub_dir = True):
+    def __init__(self, root_dir, mode="train", imageTransforms=None, aligned=True, A_name="A", B_name="B", sub_dir = True, monochrome = False ):
         """
         Required Directory Structure:
         root_dir/
@@ -34,6 +34,7 @@ class ImagetoImageDataset(Dataset):
         unaligned
         """
         self.aligned = aligned
+        self.monochrome = monochrome
         self.transform = transforms.Compose(imageTransforms)
 
         if not sub_dir:
@@ -52,11 +53,18 @@ class ImagetoImageDataset(Dataset):
 
 
     def __getitem__(self, item):
-        img_A = Image.open(self.images_A[item % len(self.images_A)]).convert('RGB')
+        img_A = Image.open(self.images_A[item % len(self.images_A)])
         if self.aligned:
-            img_B = Image.open(self.images_B[item % len(self.images_B)]).convert("RGB")
+            img_B = Image.open(self.images_B[item % len(self.images_B)])
         else:
-            img_B = Image.open(self.images_B[random.randint(0,len(self.images_B)) - 1]).convert("RGB")
+            img_B = Image.open(self.images_B[random.randint(0,len(self.images_B)) - 1])
+
+        if not self.monochrome:
+            img_A = img_A.convert('RGB')
+            img_B = img_B.convert('RGB')
+        else:
+            img_A = ImageOps.grayscale(img_A)
+            img_B = ImageOps.grayscale(img_B)
 
         if self.transform is not None:
             img_A = self.transform(img_A)

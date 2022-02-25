@@ -22,7 +22,7 @@ from gan_trainer.cyclegan.networks import Generator, Discriminator
 from gan_trainer.cyclegan.dataset import ImagetoImageDataset
 
 # some configurations for logger
-logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
 
@@ -43,9 +43,11 @@ class CycleGAN:
         self.transform = [
             transforms.Resize((self.config.input_dims[1], self.config.input_dims[2])),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            transforms.ToTensor()
+            # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ]
+        if self.config.input_dims[0] != 1:
+            self.transform += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         wandb.init(project = project_name)
         if not self.config.inference:
             # two generators
@@ -143,18 +145,20 @@ class CycleGAN:
         #     optimizer_D_B, lr_lambda=LambdaLR(self.config.n_epochs, 0, self.config.decay_epoch).step
         # )
 
-
+        is_monochrome = self.config.input_dims[0] == 1
         # loading the dataloader
         trainLoader = DataLoader(
-            ImagetoImageDataset(self.config.dataset_path,mode="train",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform),
+            ImagetoImageDataset(self.config.dataset_path,mode="train",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform,monochrome=is_monochrome),
             batch_size=self.config.batch_size,
-            shuffle=True
+            shuffle=True,
+            drop_last=True
         )
 
         testLoader = DataLoader(
-            ImagetoImageDataset(self.config.dataset_path,mode="test",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform),
+            ImagetoImageDataset(self.config.dataset_path,mode="test",sub_dir=self.config.sub_dir_dataset,imageTransforms=self.transform,monochrome=is_monochrome),
             batch_size=self.config.batch_size,
-            shuffle=True
+            shuffle=True,
+            drop_last=True
         )
 
         # Buffers of previously generated samples
@@ -172,9 +176,13 @@ class CycleGAN:
                 img_real_A = img_real_A.to(device)
                 img_real_B = img_real_B.to(device)
 
+                logger.info(f'Image size {img_real_A.shape} {img_real_B.shape}')
+
                 # Adversarial ground truths
                 channels, height, width = self.config.input_dims
                 dis_output_shape = (1, height // 2 ** 4, width // 2 ** 4)
+                # if self.config.input_dims[0] == 1:
+                #     dis_output_shape = (1, height // 2 ** 4 - 1, width // 2 ** 4 - 1)
                 valid = Variable(torch.Tensor(np.ones((img_real_A.size(0), *dis_output_shape))), requires_grad=False).to(device)
                 fake = Variable(torch.Tensor(np.zeros((img_real_A.size(0), *dis_output_shape))), requires_grad=False).to(device)
 
@@ -187,7 +195,10 @@ class CycleGAN:
                 # GAN Losses
                 img_fake_B = self.Gen_A_to_B(img_real_A)
 
+                self.Dis_B.eval()
+                self.Dis_A.eval()
 
+                # logger.info(f'Size 1 :{self.Dis_B(img_fake_B).shape} Size 2 {valid.shape } ')
                 loss_GAN_AB = lossGAN(self.Dis_B(img_fake_B),valid)
 
                 img_fake_A = self.Gen_B_to_A(img_fake_B)
@@ -195,10 +206,14 @@ class CycleGAN:
 
                 loss_GAN_net = (loss_GAN_BA+loss_GAN_AB)/2
 
+                self.Dis_B.train()
+                self.Dis_A.train()
+
                 # Cycle Losses
                 recovered_A = self.Gen_B_to_A(img_fake_B)
                 recovered_B = self.Gen_A_to_B(img_fake_A)
 
+                # logger.info(f'loss cycle a {recovered_A.shape}  {img_real_A.shape }  {img_fake_B.shape}')
                 loss_cycle_A = lossCycle(recovered_A, img_real_A)
                 loss_cycle_B = lossCycle(recovered_B, img_real_B)
 

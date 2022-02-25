@@ -124,8 +124,8 @@ class Generator(nn.Module):
 
         # 2 dk layers
         layers += [
-            CommonConvolutionBlock(out_channels, out_channels * 2, 3, stride=2, padding=1),
-            CommonConvolutionBlock(out_channels * 2, out_channels * 4, 3, stride=2, padding=1),
+            CommonConvolutionBlock(out_channels, out_channels * 2, 3, stride=2, padding=2),
+            CommonConvolutionBlock(out_channels * 2, out_channels * 4, 3, stride=2, padding=2),
         ]
 
         out_channels = out_channels * 4
@@ -202,11 +202,11 @@ class Discriminator(nn.Module):
 
 
 def test_discriminator():
-    img_channels = 3
-    dims = 256
+    img_channels = 1
+    dims = 128
     sample_img = torch.randn((1, img_channels, dims, dims))
 
-    gen = Discriminator(3)
+    gen = Discriminator(1)
 
     output = gen(sample_img)
     print(gen)
@@ -215,18 +215,18 @@ def test_discriminator():
 
 
 def test_generator():
-    img_channels = 3
-    dims = 256
+    img_channels = 1
+    dims = 128
     sample_img = torch.randn((1, img_channels, dims, dims))
 
-    gen = Generator(3)
+    gen = Generator(img_channels)
 
     output = gen(sample_img)
 
     print(output.shape)
 
 
-# if __name__ == '__main__':
-#     test_discriminator()
+if __name__ == '__main__':
+    test_generator()
 
 
