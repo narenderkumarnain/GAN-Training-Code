@@ -97,7 +97,7 @@ class CycleGAN:
 
         """
         transform = transforms.Compose(self.transform)
-        img = transform(img)
+        img = transform(img).unsqueeze(0)
         if A_to_B:
             res = self.Gen_A_to_B(img)
         else:
